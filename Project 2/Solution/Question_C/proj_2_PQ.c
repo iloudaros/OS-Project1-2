@@ -1,14 +1,28 @@
+/**************************************************************************************************************************************************************************/
+//	This C program utilizes semaphores to allow the 2 communicating processes to execute each of their commands with a given order.
+//	At first the parent process (P) creates 1 separate process (Q) using fork().
+//  Each process' command needs to be executed with the following rules in mind (these are the only rules that need to be controlled with semaphores):
+//	
+//	E1 executes before E2
+//	E5 ececutes before E6	
+//	E6 executes before E7
+//	E7 executes before E4
+//
+//	For this to be achieved, after analyzing the restrictions, we will need 2 semaphores, 
+//  one for the parent process (P) to signal the child process (Q) when it can continue and vice versa.
+//
+//	The semaphores where implemented using the POSIX Semaphores package which is supported by Linux.
+//	The code was written and tested on Ubuntu 20.04 with GNU C/C++ Compiler 9.3.0
+//
+/**************************************************************************************************************************************************************************/
+
 #include<unistd.h>
 #include<stdio.h>
 #include<sys/wait.h>
 #include<stdlib.h>
 
-#include <sys/types.h>													 						/* libraries for shared memory functions*/                                
-#include <sys/shm.h>
-#include <sys/ipc.h>
-
-#include <fcntl.h>																				/* contains 0_CREAT code for sem_open */
-#include <semaphore.h>																			/* library for POSIX semaphores */
+#include <fcntl.h>																					/* contains 0_CREAT code for sem_open */
+#include <semaphore.h>																				/* library for POSIX semaphores */
 
 int main() 
 {
@@ -16,12 +30,11 @@ int main()
 								
 	int child_status;																				/* child status for terminating Q (child) process */
 
-	int sys;
 
-		sem_t *sem = sem_open ("sem", O_CREAT, 0644, 0);											/* excersise only needs 2 semaphores */
+		sem_t *sem = sem_open ("sem", O_CREAT, 0644, 0);											/* program only requires 2 semaphores, initialized as 0 */
 		sem_t *sem2 = sem_open ("sem2", O_CREAT, 0644, 0);
 
-	if (sem == SEM_FAILED )
+	if (sem == SEM_FAILED )																			/* check if semaphore initialization was successful */
 	{
 		printf("Semaphore initialization failed. Exiting... \n");
 		exit(1);
@@ -29,17 +42,17 @@ int main()
 
 	qProcessId = fork();																			/* fork parent(process P) to create child (process Q) */																					
 
-	if (qProcessId == 0) 																			/* if i-th process is first parent's child process (= fork() returned 0) */
+	if (qProcessId == 0) 																			/* if process is the child-process (= fork() returned 0) */
 	{		
 		/**** Process Q Code ****/
 
-		sem_wait(sem);					//E2 executes after E1
+		sem_wait(sem);					//E2 will execute after E1
 		system("echo This Is E2");
 		system("echo This Is E3");
-		sem_wait(sem);					//E6 executes after E5
+		sem_wait(sem);					//E6 will execute after E5
 		system("echo This Is E6");
-		sem_post(sem2);					//E7 can execute
-		sem_wait(sem);					//E4 executes after E7
+		sem_post(sem2);					//E7 can now execute
+		sem_wait(sem);					//E4 will execute after E7
 		system("echo This Is E4");
 		exit(0);
 
@@ -49,16 +62,16 @@ int main()
 	/**** Process P Code ****/
 
 	system("echo This Is E1");
-	sem_post(sem);						//E2 can execute
-	sys = system("echo This Is E5");
-	sem_post(sem);						//E6 can execute
-	sys = system("echo This Is E8");
-	sys = system("echo This Is E9");	
-	sem_wait(sem2);						//E7 executes after E6
-	sys = system("echo This Is E7");
-	sem_post(sem);						//E4 can execute
+	sem_post(sem);						//E2 can now execute
+	system("echo This Is E5");
+	sem_post(sem);						//E6 can now execute
+	system("echo This Is E8");
+	system("echo This Is E9");	
+	sem_wait(sem2);						//E7 will execute after E6
+	system("echo This Is E7");
+	sem_post(sem);						//E4 can now execute
 
-	pid_t wpid = waitpid(qProcessId, &child_status, 0);												/* terminate parent when child has terminated */
+	pid_t wpid = waitpid(qProcessId, &child_status, 0);												/* wait to terminate parent after child has terminated */
 
 	if (WIFEXITED(child_status)) 															 		/* WIFEXITED returns true if child exited normally */
 	{
